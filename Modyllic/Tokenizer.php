@@ -246,8 +246,7 @@ class Modyllic_Tokenizer {
                 $cur = array_shift($this->injected);
                 if ( $cur instanceOf Modyllic_Token_EOC ) {
                     return null;
-                }
-                else {
+                } else {
                     return $cur->literal();
                 }
             }
@@ -262,11 +261,13 @@ class Modyllic_Tokenizer {
                 $this->pos += strlen($this->delimiter);
                 return null;
             }
+
             // If we see a quote character, match a string...
             else if ( $this->is_string() ) {
                 $cur = $this->next_string();
                 return $cur->literal();
             }
+
             // MySQL version comment, strip the comment part, but keep the contents
             // These look like: /*!40103 sql */
             // We replace the leading '/*!40103' and trailing '*/' with spaces.
@@ -292,13 +293,13 @@ class Modyllic_Tokenizer {
             // C style comments
             else if ( $this->is_c_comment($matches) ) {
                 $this->pos += strlen($matches[1]);
-                $comment = preg_replace( '/^[*]\s*$|^\s+[*]\s?/mu', '', $matches[2] );
                 return $matches[1];
             }
             // Symbol characters
             else if ( $this->is_other_symbol() ) {
                 $char = $this->cmdstr[$this->pos];
                 $this->pos ++;
+
                 return $char;
             }
             else {
@@ -393,8 +394,13 @@ class Modyllic_Tokenizer {
                 $this->cur = new Modyllic_Token_Num($this->pos,$match);
             }
             else if ( $this->is_ident($matches) ) {
-                $this->pos += strlen($matches[1]);
-                $this->cur = new Modyllic_Token_Bareword($this->pos,$matches[1]);
+                if (substr($this->cmdstr, $this->pos+strlen($matches[1]), 1) == ':') { // ident is a label
+                    $this->pos += strlen($matches[1]) + 1;
+                    $this->cur = new Modyllic_Token_Label($this->pos,$matches[1]);
+                } else {
+                    $this->pos += strlen($matches[1]);
+                    $this->cur = new Modyllic_Token_Bareword($this->pos,$matches[1]);
+                }
             }
 
             // MySQL version comment, strip the comment part, but keep the contents

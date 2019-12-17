@@ -23,6 +23,10 @@ class Modyllic_Schema_Column extends Modyllic_Diffable {
     public $after;
     public $is_primary;
 
+    public $virtual = false;
+    public $virtual_def = '';
+    public $virtual_stored = false;
+
     /**
      * @param string $name
      */
@@ -44,6 +48,9 @@ class Modyllic_Schema_Column extends Modyllic_Diffable {
         if ( $this->unique != $other->unique ) { return false; }
         if ( $this->on_update != $other->on_update ) { return false; }
         if ( $this->aliases != $other->aliases ) { return false; }
+        if ( $this->virtual != $other->virtual ) { return false; }
+        if ( $this->virtual_def != $other->virtual_def ) { return false; }
+        if ( $this->virtual_stored != $other->virtual_stored ) { return false; }
         return true;
     }
 

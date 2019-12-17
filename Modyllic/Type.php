@@ -65,6 +65,8 @@ abstract class Modyllic_Type {
                 return new Modyllic_Type_Text($type,4294967295); // 2^32 -1
             case "LONGBLOB":
                 return new Modyllic_Type_Blob($type,4294967295); // 2^32 -1
+            case "JSON":
+                return new Modyllic_Type_Json($type);
             case "ENUM":
                 return new Modyllic_Type_Enum($type);
             case "SET":

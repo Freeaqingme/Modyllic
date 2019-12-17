@@ -250,3 +250,10 @@ colorized, syntax-highlighted version on STDOUT.
 `modyllic preparse FILENAME.sql > FILENAME.sqlc` - Can be used to optimize the
 performance of other tools by "pre-compiling" their input.  The other tools
 will load a `.sqlc` file in preference to a `.sql` if it is newer.
+
+# Running the tests
+
+To run the tests:
+```bash
+find test -name '*.t' | xargs -n1 php
+```

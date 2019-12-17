@@ -8,6 +8,7 @@
 
 abstract class Modyllic_Schema_CodeBody extends Modyllic_Diffable {
     public $body = "BEGIN\nEND";
+    public $begin_label = null;
     /**
      * @returns string Strips any comments from the body of the routine--
      * this allows the body to be compared to the one in the database,
@@ -27,7 +28,8 @@ abstract class Modyllic_Schema_CodeBody extends Modyllic_Diffable {
     }
 
     function equal_to(Modyllic_Schema_CodeBody $other) {
-        if ( get_class($other) != get_class($this) )   { return false; }
+        if ( get_class($other) != get_class($this) ) { return false; }
+        if ( $this->begin_label != $other->begin_label ) { return false; }
         if ( $this->_body_no_comments() != $other->_body_no_comments() ) { return false; }
         return true;
     }

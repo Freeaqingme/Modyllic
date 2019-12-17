@@ -62,8 +62,13 @@ class Modyllic_Parser {
 
         try {
             while ( 1 ) {
+OUTER_LOOP:
                 $this->parse_command();
                 while (1) {
+                    if ( $this->cur() instanceOf Modyllic_Token_Delim && ! $this->peek_next() instanceof Modyllic_Token_EOC ) {
+                        goto OUTER_LOOP;
+                    }
+
                     if ( $this->next() instanceOf Modyllic_Token_EOC ) {
                         break;
                     }
@@ -479,6 +484,20 @@ class Modyllic_Parser {
         }
         while ( ! ($this->next() instanceOf Modyllic_Token_EOC) ) {
             if ( $this->maybe_table_option() ) { }
+            else if ( $this->cur()->token() == "ADD" ) {
+                $this->next();
+
+                if ( $this->is_reserved(array( "CONSTRAINT", "FOREIGN KEY", "PRIMARY KEY", "UNIQUE", "FULLTEXT", "SPATIAL", "KEY", "INDEX"  )) ) {
+                    $this->ctx = $this->schema->tables[$table_name];
+                    $this->load_key(false);
+
+                    if ( $this->cur() instanceof Modyllic_Token_Delim) {
+                        break;
+                    }
+                } else {
+                    $this->warning("Don't know how to ADD ".$this->cur()->debug());
+                }
+            }
             else if ( $this->cur()->token() == "DROP" ) {
                 $this->get_reserved();
                 if ( $this->cur()->token() == "PRIMARY KEY" ) {
@@ -768,6 +787,10 @@ class Modyllic_Parser {
         //   | [NOT] DETERMINISTIC
         //   | { CONTAINS SQL | NO SQL | READS SQL DATA | MODIFIES SQL DATA }
         while ( true ) {
+            if ($this->peek_next() instanceof Modyllic_Token_Label) {
+                $this->next();
+                $routine->begin_label = $this->cur()->token();
+            }
             if (in_array($this->peek_next()->token(),array('BEGIN','RETURN','CALL','SELECT','INSERT','UPDATE','DELETE'))) {
                 break;
             }
@@ -1029,6 +1052,10 @@ class Modyllic_Parser {
         // Load table flags
         while ( ! $this->peek_next() instanceOf Modyllic_Token_EOC ) {
             $this->next();
+            if ($this->cur()->token() == ',') { // Multiple table options are concatenated by comma
+                $this->assert_symbol();
+                continue;
+            }
             if ( $this->maybe_table_option() ) { }
             else {
                 throw $this->error("Unknown table flag ".$this->cur()->debug().", expected ENGINE, ROW_FORMAT, CHARSET or COLLATE");
@@ -1201,6 +1228,40 @@ class Modyllic_Parser {
             else if ( $this->cur()->token() == 'COMMENT' ) {
                 $column->docs = trim( $column->docs . ' ' . $this->get_string() );
             }
+            else if ( $this->cur()->token() == 'GENERATED' || $this->cur()->token() == 'AS') {
+                $column->virtual = true;
+                if ($this->cur()->token() == 'GENERATED') {
+                    if ( ! $this->maybe('ALWAYS')) {
+                        throw $this->error("GENERATED should always be followed by 'ALWAYS'");
+                    }
+                    if ( ! $this->maybe('AS')) {
+                        throw $this->error("GENERATED ALWAYS should always be followed by 'AS'");
+                    }
+                }
+                if ($this->peek_next()->value() != '(') {
+                    throw $this->error('Virtual column definitions must be contained in \'(...)\'');
+                };
+
+                $def = '';
+                $roundBrackets = 0;
+                do {
+                    $this->next();
+                    $cur = $this->cur()->value();;
+                    if ($cur == '(') {
+                        $roundBrackets++;
+                    } elseif($cur == ')') {
+                        $roundBrackets--;
+                    }
+                    $def .= $cur;
+                } while($roundBrackets > 0);
+                $column->virtual_def = $def;
+
+                if ($this->maybe('VIRTUAL')) {
+                    $column->virtual_stored = false;
+                } elseif ($this->maybe('STORED')) {
+                    $column->virtual_stored = true;
+                }
+            }
             else {
                 throw $this->error("Unknown token in column declaration: ".$this->cur()->debug());
             }
@@ -1222,14 +1283,14 @@ class Modyllic_Parser {
         return $column;
     }
 
-    function load_key() {
+    function load_key($isCreate = true) {
         //     CONSTRAINT [ident] FOREIGN KEY [ident] (ident,...)
         //          REFERENCES ident (ident,...) [ON DELETE reserved] [ON UPDATE reserved]
         //   | PRIMARY KEY (ident,...) [USING {BTREE|HASH}]
-        //   | [UNIQUE|FULLTEXT] KEY ident (ident,...) [USING {BTREE|HASH}]
+        //   | [UNIQUE|FULLTEXT] [KEY|INDEX] ident (ident,...) [USING {BTREE|HASH}]
         $token = $this->assert_reserved();
         if ( $token == 'CONSTRAINT' or $token == 'FOREIGN KEY' ) {
-            $key = $this->load_foreign_key($token);
+            $key = $this->load_foreign_key($token, $isCreate);
         }
         else {
             $key = $this->load_regular_key($token);
@@ -1248,7 +1309,7 @@ class Modyllic_Parser {
             }
             else if ( $token == 'UNIQUE' ) {
                 $key->unique = true;
-                if ( $this->maybe('KEY') ) {
+                if ( $this->maybe('KEY') || $this->maybe('INDEX') ) {
                     $this->assert_reserved();
                 }
                 break;
@@ -1292,7 +1353,7 @@ class Modyllic_Parser {
         return $key;
     }
 
-    function load_foreign_key($token) {
+    function load_foreign_key($token, $isCreate = true) {
         $key = new Modyllic_Schema_Index_Foreign();
         if ( $token == 'CONSTRAINT' ) {
             $key->cname = $this->get_ident();
@@ -1349,7 +1410,11 @@ class Modyllic_Parser {
                     "'".implode("', '", array( 'ON DELETE', 'ON UPDATE' ) + $this->column_term )."' got ".$this->cur()->debug() );
             }
         }
-        $this->assert_symbol();
+
+        if ($isCreate) {
+            $this->assert_symbol();
+        }
+
         if ( ! $key->cname ) {
             $this->gen_constraint_name($key);
         }
@@ -1518,7 +1583,7 @@ class Modyllic_Parser {
      * @returns the value of the identifier
      */
     function assert_ident() {
-        if ( ! $this->cur() instanceOf Modyllic_Token_Ident ) {
+        if ( ! $this->cur() instanceOf Modyllic_Token_Ident && ! $this->cur() instanceof Modyllic_Token_String) {
             throw $this->error( "Expected identifier, got ".$this->cur()->debug() );
         }
         return $this->cur()->value();

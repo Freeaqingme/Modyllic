@@ -8,7 +8,7 @@
 
 class Modyllic_Type_Datetime extends Modyllic_Type {
     function normalize($date) {
-        assert( '! is_object($date) or $date instanceOf Modyllic_Token' );
+        assert( ! is_object($date) or $date instanceOf Modyllic_Token);
         $is_object = is_object($date);
         if ($is_object) {
             $value = $date->value();

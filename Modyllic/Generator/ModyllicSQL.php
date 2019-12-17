@@ -698,6 +698,21 @@ class Modyllic_Generator_ModyllicSQL {
         return $this;
     }
 
+    function emit_column_virtual( Modyllic_Schema_Column $column ) {
+        if (!$column->virtual) {
+            return $this;
+        }
+
+        $this->add(' GENERATED ALWAYS AS ');
+        $this->add($column->virtual_def);
+
+        if ($column->virtual_stored) {
+            $this->add(' STORED');
+        }
+
+        return $this;
+    }
+
     function column_auto_increment( Modyllic_Schema_Column $column ) {
         return ! $column->type instanceOf Modyllic_Type_Serial and $column->auto_increment;
     }
@@ -741,6 +756,7 @@ class Modyllic_Generator_ModyllicSQL {
         $this->emit_column_auto_increment( $column );
         $this->emit_column_default( $column );
         $this->emit_column_on_update( $column );
+        $this->emit_column_virtual( $column );
 
         $this->column_aliases($column);
         return $this;
@@ -1023,8 +1039,15 @@ class Modyllic_Generator_ModyllicSQL {
         }
     }
 
+    function routine_label( $routine ) {
+        if ( ! $routine->begin_label ) {
+            return;
+        }
+        $this->extend( sprintf('%s:', $routine->begin_label));
+    }
+
     function routine_body( $routine ) {
-        $this->extend( $routine->body );
+        $this->extend( '  ' . $routine->body );
         return $this;
     }
 
@@ -1114,6 +1137,7 @@ class Modyllic_Generator_ModyllicSQL {
         $this->routine_args($func);
         $this->function_returns( $func );
         $this->routine_attrs( $func );
+        $this->routine_label( $func );
         $this->routine_body( $func );
         $this->end_cmd();
         return $this;
@@ -1144,6 +1168,7 @@ class Modyllic_Generator_ModyllicSQL {
         $this->routine_args($proc);
         $this->procedure_returns( $proc );
         $this->routine_attrs( $proc );
+        $this->routine_label( $proc );
         $this->routine_body( $proc );
         $this->end_cmd();
 

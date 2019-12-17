@@ -26,6 +26,7 @@ class Modyllic_Loader_File {
                 throw new Modyllic_Loader_Exception("Error opening $file");
             }
             $parser = new Modyllic_Parser();
+            $data = str_replace("\xEF\xBB\xBF",'', $data); // remove BOM
             $parser->partial($schema, $data, $file, ";" );
         }
         else {
